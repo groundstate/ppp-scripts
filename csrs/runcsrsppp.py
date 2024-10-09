@@ -52,7 +52,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install rinexlib\n eg openttp/software/system/installsys.py -i rinexlib')
 	
-VERSION = '0.2.4'
+VERSION = '0.2.5'
 AUTHORS = 'Michael Wouters'
 EDIT_RNX_OBS = 'editrnxobs.py'
 CSRS_PPP_AUTO = 'csrs_ppp_auto.py'
@@ -80,7 +80,7 @@ examples += '    runcsrsppp.py\n'
 examples += '2. Check for missing weekly files\n'
 examples += '    runcsrsppp.py --missing\n'
 
-parser = argparse.ArgumentParser(description='Generate CGGTTS files from RINEX observations',
+parser = argparse.ArgumentParser(description='Generate a week long clock solution using CSRS PPP',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog=examples)
 
 parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD] (if not given, the MJD of two days ago is used as the last day of a 7 day run)')
