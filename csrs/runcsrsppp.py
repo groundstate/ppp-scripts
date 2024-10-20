@@ -208,7 +208,7 @@ for rx in receivers:
 		jStartMJD = job[0]
 		jStopMJD  = job[1]
 		ottp.Debug('Processing {} for MJD {:d} - {:d}'.format(station,jStartMJD,jStopMJD))
-		output   = os.path.join(tmpDir,'{}{:d}.obs'.format(station,jStartMJD))
+		output   = os.path.join(tmpDir,'{}{:d}.obs'.format(station,jStartMJD)) # simple name for file which will be sent to CSRS PPP service
 		gzoutput = output + '.gz'
 		
 		# Clean up messes

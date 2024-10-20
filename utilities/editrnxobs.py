@@ -37,21 +37,15 @@ import subprocess
 import sys
 import time
 
-VERSION = "2.1.0"
+sys.path.append("/usr/local/lib/python3.6/site-packages")  # Ubuntu 18.04
+sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
+sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+
+import ottplib as ottp
+import rinexlib as rinex
+
+VERSION = "2.2.0"
 AUTHORS = "Michael Wouters"
-
-# Compression algorithms
-
-C_HATANAKA = 0x01
-C_GZIP     = 0x02
-C_BZIP2    = 0x04
-C_COMPRESS = 0x08
-
-# ------------------------------------------
-def Debug(msg):
-	if (debug):
-		sys.stderr.write(msg+'\n')
-	return
 
 # ------------------------------------------
 def ErrorExit(msg):
@@ -62,140 +56,7 @@ def ErrorExit(msg):
 def IsMJD(txt):
 	return re.match(r'\d{5}',txt)
 
-# ------------------------------------------
-def Decompress(fin):
-	
-	algo = 0x00
-	
-	fBase,ext = os.path.splitext(fin)
-	
-	if not ext:
-		return [fin,'','',algo]
-	
-	fout = fBase
-	cmd = []
-	
-	if ext.lower() == '.gz':
-		algo = C_GZIP
-		cmd = ['gunzip',fin]
-	elif ext.lower() == '.bz2':
-		algo = C_BZIP2
-		cmd = ['bunzip2',fin] 
-	elif ext.lower() == '.z':
-		algo = C_COMPRESS     # can do this with gunzip
-		cmd = ['gunzip',fin]
-	elif ext.lower() == '.crx' or re.match(r'\.\d{2}d',ext.lower()):
-		algo = C_HATANAKA
-		cmd  = ['CRX2RNX',fin,'-d'] # delete input file
-		if ext == '.crx':
-			fout  = fBase + '.rnx'
-		elif ext == '.CRX':
-			fout  = fBase + '.RNX'
-		else:
-			m = re.match(r'\.(\d{2})[dD]',ext)
-			if m:
-				fout = fBase + '.' + m.group(1)
-				if ext[3] == 'd':
-					fout += 'o'
-				else:
-					fout += 'O'
-	else: # nothing to do, hopefully
-		return [fin,algo]
-	
-	# and do it
-	
-	Debug('Decompressing {} (ext {})'.format(fin,ext))
-	try:
-		x = subprocess.check_output(cmd) # eat the output
-	except Exception as e:
-		ErrorExit('Failed to run ')
-	print('Done')
-	
-	# CRX2RNX renames .crx to .rnx (and .CRX to .RNX)
-	# CRX2RNX renames .xxD to .xxO (and .xxd to .xxo)
-	
-	# and check for Hatanaka again
-	ext2=''
-	fBase2,ext2 = os.path.splitext(fBase)
-	if ext2.lower() == '.crx' or re.match(r'\.\d{2}d',ext2.lower()): 
-		
-		algo |= C_HATANAKA
-		cmd = ['CRX2RNX',fBase,'-d'] # delete input file
-		Debug('Decompressing {} format {}'.format(fBase,ext2))
-		
-		try:
-			x = subprocess.check_output(cmd) # eat the output
-		except Exception as e:
-			ErrorExit('Failed to run ')
-		
-		if ext2 == '.crx':
-			fout  = fBase2 + '.rnx'
-		elif ext2 == '.CRX':
-			fout  = fBase2 + '.RNX'
-		else:
-			m = re.match(r'\.(\d{2})[dD]',ext2)
-			if m:
-				fout = fBase2 + '.' + m.group(1)
-				if ext2[3] == 'd':
-					fout += 'o'
-				else:
-					fout += 'O'
 
-	return [fout,algo] 
-
-
-# ------------------------------------------
-def Compress(fin,fOriginal,algo):
-	
-	if not algo:
-		return
-			
-	fBase,ext = os.path.splitext(fin)
-	
-	if algo & C_HATANAKA: # HATANAKA first
-		cmd = ['RNX2CRX',fin,'-d'] # delete input file
-		Debug('Compressing (Hatanaka) {}'.format(fin))
-		try:
-			x = subprocess.check_output(cmd) # eat the output
-		except Exception as e:
-			ErrorExit('Failed to run ')
-		
-		if ext== '.rnx':
-			fin  = fBase + '.crx'
-		elif ext == '.RNX':
-			fin = fBase + '.CRX'
-		else:
-			m = re.match(r'\.(\d{2})[oO]',ext)
-			if m:
-				fin = fBase + '.' + m.group(1)
-				if ext[3] == 'o':
-					fin += 'd'
-				else:
-					fin += 'D'
-		
-	if (algo & C_GZIP):
-		cmd = ['gzip',fin]
-		ext = '.gz'
-	elif (algo & C_BZIP2):
-		cmd = ['bzip2',fin] 
-		ext = '.bz2'
-	elif (algo & C_COMPRESS):
-		pass
-	
-	Debug('Compressing {}'.format(fin))
-	try:
-		x = subprocess.check_output(cmd) # eat the output
-	except Exception as e:
-		ErrorExit('Failed to run ')
-	
-	fin += ext
-	
-	if not(fin == fOriginal): # Rename the file if necessary (to fix up case of file extensions)
-		Debug('{} <- {}'.format(fOriginal,fin))
-		os.rename(fin,fOriginal)
-	
-	return 
-	
 # ------------------------------------------
 def ParseRINEXFileName(fname):
 	ver = 0
@@ -329,64 +190,49 @@ def GetRinexVersion(hdr):
 		if match:
 			vMajor = int(match.group(1))
 			vMinor = int(match.group(2))
-			Debug('GetRinexVersion {:d}.{:02d}'.format(vMajor,vMinor))
+			ottp.Debug('GetRinexVersion {:d}.{:02d}'.format(vMajor,vMinor))
 	return [vMajor,vMinor]
 	
 
 # ------------------------------------------
-def MJDtoRINEXObsName(mjd,template):
+def WriteRINEXFile(tmpDir,tmpDataFile,tmpHeaderFile,tmpRnxPath,srcRnxPath):
 	
-	fname = ''
-	t    = (mjd-40587)*86400.0
-	tod  = time.gmtime(t)
-	yyyy = tod.tm_year
-	yy   = tod.tm_year - int(tod.tm_year/100)*100
-	doy  = tod.tm_yday
-	
-	# Version 2 names are of the format
-	# xxxxDDDx.YY[oO]
-	m = re.match(r'(\w{4})DDD(\d)\.YY([oO])',template)
-	if m:
-		fname = '{}{:03d}{}.{:02d}{}'.format(m.group(1),doy,m.group(2),yy,m.group(3))
-		return fname
-	
-	# Next, try V3
-	# See the format spec!
-	m = re.match('(\w{9})_(\w)_YYYYDDD(\d{4})_(\w{3})_(\w{3})_(\w{2})\.(rnx|RNX)',template)
-	if m:
-		fname='{}_{}_{:04d}{:03d}{}_{}_{}_{}.{}'.format(m.group(1),m.group(2),yyyy,doy,m.group(3),m.group(4),m.group(5),m.group(6),m.group(7))
-		return fname
-
-	return fname
-
-# ------------------------------------------
-def WriteRINEXFile(tmpDir,tmpDataFile,tmpHeaderFile,tmpRnxFile,finName):
-	
-	Debug('Writing RINEX')
-	with open(os.path.join(tmpDir,tmpRnxFile),'wb') as fout:
+	# Contruct the temporary RINEX file in tmpDir
+	ottp.Debug('Writing temporary RINEX ' + tmpRnxPath)
+	with open(tmpRnxFile,'wb') as fout:
 		with open(tmpHeaderFile,'rb') as f:
 			fout.write(f.read())
 		with open(tmpDataFile,'rb') as f:
 			fout.write(f.read())
-			
+	
+	# Clean up
 	os.unlink(tmpHeaderFile)
 	os.unlink(tmpDataFile)
 	
-	if finName:
+	if srcRnxPath: # the new RINEX file originates from a single RINEX file, which we might be replacing
+		ottp.Debug('Source RINEX file was ' + srcRnxPath)
 		if args.replace:
 			if args.backup: 
-				fBackup = finName + '.original'
-				shutil.copyfile(finName,fBackup)
-				Debug('{} backed up to {}'.format(finName,fBackup))
-			shutil.copyfile(tmpRnxFile,finName)
+				fBackup = srcRnxPath + '.original'
+				shutil.copyfile(srcRnxPath,fBackup)
+				ottp.Debug('{} backed up to {}'.format(srcRnxPath,fBackup))
+			shutil.copyfile(tmpRnxPath,srcRnxPath)
 		else:
-			shutil.copyfile(tmpRnxFile,os.path.join(args.output,os.path.basename(finName)))
+			if os.path.isdir(args.output):
+				shutil.copy(tmpRnxPath,os.path.join(args.output,os.path.basename(srcRnxPath)))
+			else:
+				shutil.copyfile(tmpRnxPath,args.output) 
+		os.unlink(tmpRnxFile) # bye bye
+	else:
+		if args.output: # this is how runcsrsppp.py calls this
+			shutil.copy(tmpRnxPath,args.output) # works for both a destination directory/path
+			os.unlink(tmpRnxFile) # bye bye
+		else:
+			ottp.Debug('WriteRINEXFile() - temporary file not renamed!')
+			
+	# This might leave tmpRnxFile in place -- see above
 	
-	if args.output:
-		shutil.copy(tmpRnxFile,args.output)
-		os.unlink(tmpRnxFile)
-	
-	Debug('Writing RINEX done')
+	ottp.Debug('Writing RINEX done')
 		
 # ------------------------------------------
 # Main
@@ -394,7 +240,7 @@ def WriteRINEXFile(tmpDir,tmpDataFile,tmpHeaderFile,tmpRnxFile,finName):
 appName= os.path.basename(sys.argv[0])+ ' ' + VERSION
 
 examples =  'Usage examples\n'
-examples += '  \n'
+examples += 'editnrxobs.py --catenate --excludeGNSS CRIJS --obsdir RINEX --template  \n'
 
 parser = argparse.ArgumentParser(description='Edit a V3 RINEX observation file',
 	formatter_class=argparse.RawDescriptionHelpFormatter,epilog = examples)
@@ -404,7 +250,7 @@ parser.add_argument('infile',nargs='+',help='input file or MJD',type=str)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 
 parser.add_argument('--catenate','-c',help='catenate input files',action='store_true')
-parser.add_argument('--excludegnss','-x',help='remove specified GNSS (BEGRJI)',default='')
+parser.add_argument('--excludegnss','-x',help='remove specified GNSS (CEGRJI)',default='')
 parser.add_argument('--fixmissing','-f',help='fix missing observations due to UTC/GPS day rollover mismatch',action='store_true')
 
 parser.add_argument('--template',help='template for RINEX file names',default='')
@@ -412,16 +258,17 @@ parser.add_argument('--obsdir',help='RINEX file directory',default='./')
 parser.add_argument('--tmpdir',help='directory for temporary files',default='./')
 
 group = parser.add_mutually_exclusive_group()
-group.add_argument('--output','-o',help='output to file/directory',default='')
+group.add_argument('--output','-o',help='write output to file/directory',default='')
 group.add_argument('--replace','-r',help='replace edited file',action='store_true')
 
-parser.add_argument('--backup','-b',help='create backup of edited file',action='store_true')
+parser.add_argument('--backup','-b',help='create backup (extension .original) of edited file',action='store_true')
 
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
 args = parser.parse_args()
 
 debug = args.debug
+ottp.SetDebugging(debug)
 
 # Check arguments
 if not(args.catenate or args.excludegnss):
@@ -461,10 +308,10 @@ else:
 if infiles:
 	if not(args.template):
 		ErrorExit('You need to define a template for the RINEX file names (--template)')
-	if not(MJDtoRINEXObsName(60000,args.template)):
+	if not(rinex.MJDtoRINEXObsName(60000,args.template)):
 		ErrorExit('Bad --template')
 	for i in range(0,len(infiles)):
-		fName = MJDtoRINEXObsName(int(infiles[i]),args.template)
+		fName = rinex.MJDtoRINEXObsName(int(infiles[i]),args.template)
 		infiles[i] = os.path.join(args.obsdir,fName)
 		print(infiles[i])
 
@@ -536,7 +383,7 @@ if args.fixmissing:
 # Preliminary stuff done.
 
 # First, a quick check on RINEX version
-fDe,algo = Decompress(infiles[0])
+fDe,algo = rinex.Decompress(infiles[0])
 try:
 	fin = open(fDe,'r')
 except:
@@ -546,7 +393,7 @@ hdr = ReadHeader(fin)
 majorVer,minorVer = GetRinexVersion(hdr)
 if (majorVer < 3):
 	ErrorExit('RINEX version {:d} detected in {}. Only V3 is supported'.format(majorVer,infiles[0]))
-Compress(fDe,infiles[0],algo)
+rinex.Compress(fDe,infiles[0],algo)
 
 
 # Now do stuff!
@@ -563,7 +410,7 @@ compressionJobs =[]
 
 for f in infiles:
 	
-	finName,algo = Decompress(f)
+	finName,algo = rinex.Decompress(f)
 	compressionJobs.append([finName,f,algo])
 	
 	try:
@@ -572,7 +419,7 @@ for f in infiles:
 	except:
 		ErrorExit('Unable to open ' + finName)
 	
-	Debug('Opened ' + finName)
+	ottp.Debug('Opened ' + finName)
 	
 	if not(args.catenate): # open file for output of measurements
 		try:
@@ -644,7 +491,7 @@ if (args.catenate and not(args.fixmissing)):
 		ReplaceHeaderField(newHdr,'TIME OF LAST OBS',lastObs[0])
 	
 	WriteTmpHeaderFile(tmpHeaderFile,newHdr)
-	WriteRINEXFile(tmpDir,tmpDataFile,tmpHeaderFile,tmpRnxFile,'')
+	WriteRINEXFile(tmpDir,tmpDataFile,tmpHeaderFile,tmpRnxFile,'') # empty name is used as a  flag
 	
 if args.fixmissing:
 	
@@ -731,6 +578,6 @@ if args.fixmissing:
 	
 # ... and recompress anything we decompressed
 for c in compressionJobs:
-	Compress(c[0],c[1],c[2])
+	rinex.Compress(c[0],c[1],c[2])
 
 	
