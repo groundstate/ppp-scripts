@@ -47,7 +47,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "0.11.0"
+VERSION = "1.0.0"
 AUTHORS = "Michael Wouters"
 
 # RINEX V3 constellation identifiers
@@ -113,8 +113,14 @@ def FetchFile(session,url,destination,magicTag):
 		return False
 
 # ---------------------------------------------
-def  IGSBiasFile(prefCentre,product,yyyy,doy):
+def  IGSBiasFile(biasCentre,fileFormat,product,yyyy,doy):
+	
+	# This is a bit of a mess because of the period before the BSX format was 
+	# formally defined
 	fname = ''
+	
+	
+	# Legacy bias files:
 	
 	# Rapid are CAS/DFZ (2023-), available daily
 	# CAS0MGXRAP_20222790000_01D_01D_DCB.BSX.gz
@@ -126,9 +132,12 @@ def  IGSBiasFile(prefCentre,product,yyyy,doy):
 	# # 1, 91, 182, 274
 	
 	if product == 'rapid':
-		fname = '{}0MGXRAP_{:04d}{:03d}0000_01D_01D_DCB.BSX.gz'.format(prefCentre,yyyy,doy)
+		if fileFormat == 'DCBBIA':
+			fname = '{}OPSRAP_{:04d}{:03d}0000_01D_01D_DCB.BIA.gz'.format(biasCentre,yyyy,doy)
+		elif fileFormat == 'OSBBIA': # this is the new stuff
+			fname = '{}OPSRAP_{:04d}{:03d}0000_01D_01D_OSB.BIA.gz'.format(biasCentre,yyyy,doy)
 	else:
-		# This needs a bit more work
+		# This needs a bit more work :-)
 		if (doy <= 90):
 			pass
 		elif (doy <= 181): # 182 in 2016
@@ -154,8 +163,11 @@ home = os.environ['HOME'] + '/';
 root = home
 configFile = os.path.join(home,'etc/getgnssproducts.conf');
 
+biasCentre = 'COD0'
+biasFormat = 'OSBBIA'
+
 examples =  'Examples:\n'
-examples += '1. Download combined IGS epehemeris files for 2022\n'
+examples += '1. Download combined IGS ephemeris files for 2022\n'
 examples += 'getgnssproducts.py--config ~/etc/getgnssproducts.conf --system MIXED --ephemeris --rinexversion 3 --outputdir ~/rinex/nav 2022-001 2022-365\n'
 
 parser = argparse.ArgumentParser(description='Downloads GNSS products',
@@ -170,22 +182,23 @@ parser.add_argument('--config','-c',help='use this configuration file',default=c
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--outputdir',help='set output directory')
 
-parser.add_argument('--centre',help='set the data centre',default='cddis')
+parser.add_argument('--centre',help='set the data centre (default = CDDIS)',default='cddis')
 parser.add_argument('--listcentres','-l',help='list the configured IGS data centres',action='store_true')
 
 # RINEX files
-parser.add_argument('--ephemeris',help='get broadcast ephemeris. If statid unspecified then the combined IGS file is fetched. If V2 , only the GPS ephemeris is fetched',action='store_true')
+parser.add_argument('--ephemeris',help='get broadcast ephemeris. If statid unspecified then the combined IGS file is fetched. If V2, only the GPS ephemeris is fetched',action='store_true')
 parser.add_argument('--observations',help='get station observations',action='store_true')
 parser.add_argument('--statid',help='station identifier (eg V3 SYDN00AUS, V2 sydn)')
-parser.add_argument('--rinexversion',help='rinex version of station observation')
+parser.add_argument('--rinexversion',help='RINEX version of station observation')
 parser.add_argument('--system',help='gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIXED')
 
 # IGS products
 parser.add_argument('--clocks',help='get clock products (.clk)',action='store_true')
 parser.add_argument('--orbits',help='get orbit products (.sp3)',action='store_true')
 parser.add_argument('--erp',help='get ERP products (.erp)',action='store_true')
-parser.add_argument('--bias',help='get differential code bias products (.bsx/.dcb)',action='store_true')
-parser.add_argument('--biasformat',help='format of downloaded bias products (BSX/DCB)',default='dcb')
+parser.add_argument('--bias',help='get differential code bias products',action='store_true')
+parser.add_argument('--biasformat',help=f'set bias format (OSBBIA/DCBBIA/DCB - default = {biasFormat})',default = biasFormat)
+parser.add_argument('--biascentre',help=f'set centre for bias products (default = {biasCentre})',default = biasCentre)
 
 parser.add_argument('--ppp',help='get products needed for PPP',action='store_true')
 parser.add_argument('--rapiddir',help='output directory for rapid products',default ='')
@@ -214,7 +227,6 @@ proxy = ''
 port = 0
 outputdir = './'
 
-
 if (not os.path.isfile(configFile)):
 	ottp.ErrorExit(configFile + ' not found')
 
@@ -238,7 +250,7 @@ elif (args.proxy):
 	(server,port)=args.proxy.split(':')
 	server.strip()
 	port.strip()
-	proxies['http'] = 'http://{}:{}'.format(server,port)
+	proxies['http']  = 'http://{}:{}'.format(server,port)
 	proxies['https'] = 'http://{}:{}'.format(server,port)
 	
 elif('main:proxy server' in cfg):
@@ -284,6 +296,14 @@ if (args.biasdir):
 elif ('paths:bias directory' in cfg):
 	biasdir = ottp.MakeAbsolutePath(cfg['paths:bias directory'],root)
 
+biasCentre = args.biascentre
+
+biasFormat = args.biasformat
+
+if biasFormat == 'DCBBIA': #fiddle with the centre
+	if biasCentre != 'CAS0' or biasCentre != 'GFZ0': # ie the default bias centre needs to be redefined
+		biasCentre = 'CAS0'
+		
 rnxVersion = 3
 if args.rinexversion:
 	rnxVersion = int(args.rinexversion)
@@ -324,7 +344,7 @@ if (rnxVersion == 3 and args.system):
 
 if args.clocks or args.orbits or args.erp or args.bias or args.ppp:
 	if not(args.rapid or args.final):
-		if args.bias and args.biasformat == 'bsx':
+		if args.bias and (args.biasformat == 'OSBBIA' or args.biasformat == 'DCBBIA'): # FIXME this is based on CDDIS so may need fixups for other centres 
 			ottp.ErrorExit("You need to specify 'rapid' or 'final' products")
 		else:
 			ottp.ErrorExit("You need to specify 'rapid' or 'final' products")
@@ -366,8 +386,8 @@ if (args.stop):
 
 ottp.Debug('start = {},stop = {} '.format(start,stop))
 
-biasFormat = args.biasformat.lower()
-prefBiasCentre = 'CAS'
+osbBiaProductPath  = cfg[dataCentre + ':osb bias']
+dcbBiasProductPath = cfg[dataCentre + ':dcb bias']
 
 # Daily data
 baseURL = cfg[dataCentre + ':base url']
@@ -382,7 +402,7 @@ session.proxies.update(proxies)
 
 for m in range(start,stop+1):
 	
-	(yyyy,doy,mm) = ottp.MJDtoYYYYDOY(m)
+	(yyyy,doy,mm)  = ottp.MJDtoYYYYDOY(m)
 	(GPSWn,GPSday) = ottp.MJDtoGPSWeekDay(m)
 	yy = yyyy-100*int(yyyy/100)
 	
@@ -457,11 +477,15 @@ for m in range(start,stop+1):
 		
 	if (args.bias):
 		
-		if biasFormat== 'bsx': # these are downloaded from the IGS global centre
-			fname = IGSBiasFile(prefBiasCentre,'rapid' if args.rapid  else 'final',yyyy,doy)
-			url = '{}/{}/{:04d}/{}'.format(baseURL,cfg[dataCentre + ':bias'],yyyy,fname)
+		if biasFormat== 'OSBBIA': # these are downloaded from the IGS data centre
+			fname = IGSBiasFile(biasCentre,biasFormat,'rapid' if args.rapid  else 'final',yyyy,doy)
+			url = '{}/{}/{:04d}/{}'.format(baseURL,osbBiaProductPath,GPSWn,fname)
 			FetchFile(session,url,'{}/{}'.format(biasdir,fname),'gzip compressed')
-		elif biasFormat == 'dcb':
+		elif biasFormat== 'DCBBIA':
+			fname = IGSBiasFile(biasCentre,biasFormat,'rapid' if args.rapid  else 'final',yyyy,doy)
+			url = '{}/{}/{:04d}/{}'.format(baseURL,dcbBiaProductPath,yyyy,fname)
+			FetchFile(session,url,'{}/{}'.format(biasdir,fname),'gzip compressed')
+		elif biasFormat == 'DCB': # legacy stuff 
 			prevmm = mm - 1
 			prevyy = yy
 			if prevmm == 0:
