@@ -39,10 +39,13 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib as ottp
 
 AUTHORS = 'Michael Wouters'
-VERSION = '2.0.1'
+VERSION = '2.0.2'
+
+examples = 'Usage examples\n'
+examples += 
 
 parser = argparse.ArgumentParser(description='Differences RINEX clock files',
-	formatter_class=argparse.RawDescriptionHelpFormatter)
+	formatter_class=argparse.RawDescriptionHelpFormatter,epilog = examples)
 
 parser.add_argument('sta1',help='station 1 name')
 parser.add_argument('sta2',help='station 2 name')
@@ -51,8 +54,8 @@ parser.add_argument('sta2dir',help = 'path to station 2 RINEX CLK files')
 parser.add_argument('outdir',help='output directory')
 parser.add_argument('startmjd')
 parser.add_argument('stopmjd')
-parser.add_argument('--days',help='nominal number of days in the CLK file (used to step through input file names when the MJD range spans multiple files)')
-parser.add_argument('--csrs','-n',help='CSRS PPP file name format (default is Bernese)',action='store_true')
+parser.add_argument('--days',help='nominal number of days in the CLK file (used to select the range in a multi-day file and to step through multi-day files when the MJD range spans multiple files)')
+parser.add_argument('--csrs','-n',help='use CSRS PPP file name format STAyyddd.clk(default is Bernese PPPyydddSTA.clk)',action='store_true')
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 
