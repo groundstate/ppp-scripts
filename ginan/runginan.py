@@ -51,7 +51,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install rinexlib\n eg openttp/software/system/installsys.py -i rinexlib')
 	
-VERSION = '0.0.1'
+VERSION = '0.1.0'
 AUTHORS = 'Michael Wouters'
 RAPID_LATENCY = 2    # Latency of rapid orbit products 
 PEA = '/usr/local/bin/pea'
@@ -96,12 +96,16 @@ def EditCfgData(cfg):
 		cfg = PrependPeaRoot(peaRoot,cfg)
 		if '<STATION>' in cfg:
 			cfg = cfg.replace('<STATION>',station,1)
+		if '<RUNDIR>' in cfg:
+			cfg = cfg.replace('<RUNDIR>',runDir,1)
 	elif type(cfg)==list:
 		for i in range(0,len(cfg)):
 			if type(cfg[i]) == str:
 				cfg[i]=PrependPeaRoot(peaRoot,cfg[i])
 				if '<STATION>' in cfg[i]:
 					cfg[i] = cfg[i].replace('<STATION>',station,1)
+				if '<RUNDIR>' in cfg[i]:
+					cfg[i] = cfg[i].replace('<RUNDIR>',runDir,1)
 	return cfg
 
 # ------------------------------------------
@@ -121,6 +125,8 @@ configFile = os.path.join(root,'etc','runginan.yaml')
 tmpDir = os.path.join(root,'tmp')
 
 peaRoot = './'
+peaExec = 'pea'
+
 pppTemplate = PPP_TEMPLATE
 
 station = 'AU00'
@@ -158,15 +164,23 @@ except:
 cfg = yaml.safe_load(fin) # only need to load the template once
 fin.close()
 
+if 'exec' in cfg['pea']:
+	peaExec = cfg['pea']['exec']
+
 if 'root' in cfg['pea']:
-	peaRoot = cfg['pea']['root']
-
-if 'ppp_template' in cfg['pea']:
-	pppTemplate = PrependPeaRoot(peaRoot,cfg['pea']['ppp_template'])
-
-if 'station' in cfg['outputs']:
-	station = cfg['outputs']['station']
+	peaRoot = cfg['pea']['root'] # need this for replacements
 	
+if 'station' in cfg['pea']:
+	station = cfg['pea']['station'] # need this for replacements
+	
+cfg = EditCfg(cfg) # make substitutions
+
+runDir = cfg['pea']['run_dir']
+satDataSrcDir  = cfg['inputs']['satellite_data']['src_dir']
+outputClockDir = cfg['outputs']['clocks']['directory']
+srcDir = cfg['inputs']['gnss_observations']['rnx_src_dir']
+pppTemplate = cfg['pea']['ppp_template']
+
 # Automatic calculation 
 mjdToday = ottp.MJD(time.time())
 startMJD = mjdToday - RAPID_LATENCY
@@ -192,8 +206,6 @@ ottp.Debug('Processing  MJD range: {} {}'.format(startMJD,stopMJD))
 rnxStation = cfg['inputs']['gnss_observations']['rnx_station']
 rnxStation4Letter = rnxStation[0:4]
 
-srcDir = PrependPeaRoot(peaRoot,cfg['inputs']['gnss_observations']['rnx_src_dir'])
-
 clkTemplate = cfg['inputs']['satellite_data']['clk_template']
 bsxTemplate = cfg['inputs']['satellite_data']['bsx_template']
 sp3Template = cfg['inputs']['satellite_data']['sp3_template']
@@ -206,16 +218,25 @@ except:
 	
 gCfg = yaml.safe_load(fin) # only need to load the template once
 fin.close()
-	
+
 gCfg = EditCfg(gCfg)
 
 dstDir = gCfg['inputs']['gnss_observations']['gnss_observations_root']
 if not os.path.isdir(dstDir):
 	os.mkdir(dstDir)
 	
-stationID = cfg['outputs']['station']
+stationID = cfg['pea']['station']
+clkFileTemplate = gCfg['outputs']['clocks']['filename'] # save this, because it will be repeatedly modified
+
+satData = [['clk_files',clkTemplate],['bsx_files',bsxTemplate],['sp3_files',sp3Template]]
+
 for mjd in range(startMJD,stopMJD+1):
 	
+	# Scrub the 'run' directory
+	if not(args.debug):
+		ottp.Debug(f'Cleaning {runDir}')
+		files = glob.glob(os.path.join(runDir,'*'))
+		
 	(yyyy,doy,mon) = ottp.MJDtoYYYYDOY(mjd)
 	yy = yyyy % 100
 	
@@ -238,8 +259,6 @@ for mjd in range(startMJD,stopMJD+1):
 	obsDecompressedPath,algo = rinex.Decompress(os.path.join(tmpDir,obsBaseName)) # this will be deleted so no need to save details for recompression
 	obsDecompressedBaseName = os.path.basename(obsDecompressedPath)
 	
-	obsGinanPath = os.path.join('/tmp',obsDecompressedBaseName)
-	
 	ottp.Debug('Running ' + editRnxObs)
 	try:
 		cmdargs = [editRnxObs,'--tmpdir',tmpDir,'--excludegnss',exclusions,'--output',dstDir,obsDecompressedPath]
@@ -258,27 +277,33 @@ for mjd in range(startMJD,stopMJD+1):
 	# and write it out
 	gCfg['inputs']['gnss_observations']['rnx_inputs'] = [obsDecompressedBaseName] # pea grumbles if this is not a list, so give it a list
 	
-	dirName = os.path.dirname(gCfg['inputs']['satellite_data']['clk_files'][0])
-	gCfg['inputs']['satellite_data']['clk_files']     = [os.path.join(dirName,MJDtoIGSProductName(mjd,clkTemplate))]
-	dirName = os.path.dirname(gCfg['inputs']['satellite_data']['bsx_files'][0])
-	gCfg['inputs']['satellite_data']['bsx_files']     = [os.path.join(dirName,MJDtoIGSProductName(mjd,bsxTemplate))]
-	dirName = os.path.dirname(gCfg['inputs']['satellite_data']['sp3_files'][0])																										
-	gCfg['inputs']['satellite_data']['sp3_files']     = [os.path.join(dirName,MJDtoIGSProductName(mjd,sp3Template))]
-	
+	for sd in satData:
+		dstDir = os.path.dirname(gCfg['inputs']['satellite_data'][sd[0]][0]) # destination directory
+		fileName = MJDtoIGSProductName(mjd,sd[1])
+		gCfg['inputs']['satellite_data'][sd[0]] = [os.path.join(dstDir,fileName)]
+		# lazy find
+		files = glob.glob(os.path.join(satDataSrcDir,fileName)+'*')
+		if files:
+			shutil.copy(files[0],dstDir)
+			rinex.Decompress(os.path.join(dstDir,os.path.basename(files[0])))
+		else:
+			pass # FIXME what do we do
+		
 	gCfg['receiver_options'][rnxStation4Letter] = {}
-	gCfg['receiver_options'][rnxStation4Letter]['receiver_type'] = cfg['receiver_options']['receiver_type']
-	gCfg['receiver_options'][rnxStation4Letter]['antenna_type'] = cfg['receiver_options']['antenna_type']
+	gCfg['receiver_options'][rnxStation4Letter]['receiver_type']    = cfg['receiver_options']['receiver_type']
+	gCfg['receiver_options'][rnxStation4Letter]['antenna_type']     = cfg['receiver_options']['antenna_type']
 	gCfg['receiver_options'][rnxStation4Letter]['apriori_position'] = cfg['receiver_options']['apriori_position']
 	
-	clkFile = gCfg['outputs']['clocks']['filename'] 
+	clkFile = clkFileTemplate
 	if 'YYDDD' in clkFile:
 		clkFile = clkFile.replace('YYDDD',f'{yy:02d}{doy:03d}',1)
 		gCfg['outputs']['clocks']['filename']  =  clkFile
 	elif 'DDD0.YY' in clkFile:
 		clkFile = clkFile.replace('DDD0.YY',f'{doy:03d}{yy:02d}',1)
 		gCfg['outputs']['clocks']['filename']  =  clkFile
-		
-	gCfgOut = 'pppclk.yaml'
+	
+	# FIXME unlink this always ?
+	gCfgOut = os.path.join(runDir,'pppclk.yaml')
 	try:
 		fout = open(gCfgOut, 'w')
 	except:
@@ -286,12 +311,26 @@ for mjd in range(startMJD,stopMJD+1):
 		
 	yaml.safe_dump(gCfg, fout, sort_keys = False) # We preserve the input order. Note that comments are stripped
 	
-	# Run Ginan
-
-	# Collect the output
+	# Run 'pea'
+	ottp.Debug('Running pea')
+	try:
+		cmdargs = [peaExec,'-y',gCfgOut]
+		subprocess.check_output(cmdargs) 
+	except Exception as e:
+		print(e)
+		ottp.ErrorExit('Failed to run ' + peaExec)
+	ottp.Debug('..done')
+	
+	# Collect the output, namely the smoothed clock file
+	# Ginan appears to put _smoothed before the extension
+	base,ext = os.path.splitext(clkFile)
+	clkPath = os.path.join(gCfg['outputs']['clocks']['directory'],f'{base}_smoothed{ext}')
+	shutil.copy(clkPath,os.path.join(outputClockDir,clkFile))
+	ottp.Debug(f'CLK file in {outputClockDir}/{clkFile}')
 	
 	# Clean up
-	os.unlink(obsDecompressedPath) # which will be in 'tmp'
+	ottp.Debug('Cleaning up ...')
+	os.unlink(obsDecompressedPath) # this is unedited RINEX, which will be in 'tmp'
 	
 	# Delete RINEX files in the pea directory
 	if not(args.debug):

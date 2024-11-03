@@ -40,32 +40,25 @@ inputs:
         - tables/sat_yaw_bias_rate.snx
         - tables/qzss_yaw_modes.snx
         - tables/bds_yaw_modes.snx
-#        - <ROOT>/igs/final/IGS1R03SNX_20191950000_07D_07D_CRD.SNX
 
     satellite_data:
-        # nav_files:
-        # - "*.rnx"
         clk_files:
-            # - "*.CLK"
-            - <ROOT>/igs/rapid/CLK_TEMPLATE  # CLK_TEMPLATE will be replaced by runginan.py
+            - <RUNDIR>/<CLK_TEMPLATE>  
         bsx_files:
-            # - "*.BIA"
-            - <ROOT>/igs/rapid/BSX_TEMPLATE   # ditto
+            - <RUNDIR>/<BIA_TEMPLATE>   
         sp3_files:
-            # - "*.SP3"
-            - <ROOT>/igs/rapid/SP3_TEMPLATE   # ditto
+            - <RUNDIR>/<SP3_TEMPLATE>   
 
     gnss_observations:
-        gnss_observations_root: <ROOT>/ginan/run/<STATION> # <STATION> is replaced runginan.py
+        gnss_observations_root: <RUNDIR> 
         rnx_inputs:
-            # - "*.rnx"
-            - RNX_TEMPLATE # RNX_TEMPLATE will be replaced by runginan.py
-       
+            - <RNX_TEMPLATE> # RNX_TEMPLATE will be replaced by runginan.py
+
 outputs:
     metadata:
         config_description: ppp_template_<BRANCH>
 
-    outputs_root: <ROOT>/ginan/run/<STATION>
+    outputs_root: <RUNDIR>
 
     gpx:
         output: true
@@ -87,7 +80,7 @@ outputs:
     
     clocks:  # RINEX formatted clock files
         output: true # Output clock files
-        directory: <ROOT>/ppp/<STATION> # directory to output clock files to
+        directory: <RUNDIR> # directory to output clock files to
         filename: <STATION>YYDDD.clk # template filename for clock files
         receiver_sources: [KALMAN, PRECISE, BROADCAST]    #  [none, spp, config, precise, ssr, kalman, broadcast, nominal, model, remote]
         satellite_sources: [KALMAN, PRECISE, BROADCAST]    #  [none, spp, config, precise, ssr, kalman, broadcast, nominal, model, remote]

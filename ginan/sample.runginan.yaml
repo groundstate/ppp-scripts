@@ -1,0 +1,28 @@
+# This defines substitutions to make into ppp_template.yaml
+pea:
+    exec: /home/michael/bin/pea # path to the executable
+    options: # options to pass to pea
+    root: /home/michael # root for paths needed by Ginan (defines <ROOT>)
+    ppp_template: <ROOT>/etc/ppp_template.yaml
+    station: PTBB # used for naming output directory and run directory (defines <STATION>)
+    run_dir: <ROOT>/ginan/run/<STATION>
+    
+inputs:
+    satellite_data:
+        src_dir: <ROOT>/igs/rapid
+        clk_template: IGS0OPSRAP_YYYYDDD0000_01D_05M_CLK.CLK
+        bsx_template: COD0OPSRAP_YYYYDDD0000_01D_01D_OSB.BIA
+        sp3_template: IGS0OPSRAP_YYYYDDD0000_01D_15M_ORB.SP3
+        
+    gnss_observations:
+        rnx_src_dir: <ROOT>/research/ginan/<STATION> # this is the source of RINEX observation files
+        rnx_station: PTBB00DEU # For V2 style names, this is the first four characters of the file name
+                               # For V3 style names, this is the first nine characters
+outputs:
+    clocks:
+        directory: <ROOT>/ppp/<STATION>  # this is where the CLK file will finally go
+
+receiver_options:
+    receiver_type: "SEPT POLARX5TR"
+    antenna_type:  "LEIAR25.R4      LEIT" # note that the radome type is needed too - uise the 20 character field
+    apriori_position: [3844059.7545,709661.5334,5023129.6933]
