@@ -313,7 +313,7 @@ if infiles:
 	for i in range(0,len(infiles)):
 		fName = rinex.MJDtoRINEXObsName(int(infiles[i]),args.template)
 		infiles[i] = os.path.join(args.obsdir,fName)
-		print(infiles[i])
+		#print(infiles[i])
 
 # No ? Then check for a file sequence
 if not(infiles):
