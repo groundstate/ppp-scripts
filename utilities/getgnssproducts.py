@@ -47,7 +47,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install ottplib\n eg openttp/software/system/installsys.py -i ottplib')
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 AUTHORS = "Michael Wouters"
 
 # RINEX V3 constellation identifiers
@@ -194,8 +194,14 @@ parser.add_argument('--system',help='gnss system (GLONASS,BEIDOU,GPS,GALILEO,MIX
 
 # IGS products
 parser.add_argument('--clocks',help='get clock products (.clk)',action='store_true')
+#parser.add_argument('--clktemplate',help='set template for the clock file')
+
 parser.add_argument('--orbits',help='get orbit products (.sp3)',action='store_true')
+#parser.add_argument('--sp3template',help='set template for the sp3 files')
+
 parser.add_argument('--erp',help='get ERP products (.erp)',action='store_true')
+#parser.add_argument('--erptemplate',help='set template for the erp files')
+
 parser.add_argument('--bias',help='get differential code bias products',action='store_true')
 parser.add_argument('--biasformat',help=f'set bias format (OSBBIA/DCBBIA/DCB - default = {biasFormat})',default = biasFormat)
 parser.add_argument('--biascentre',help=f'set centre for bias products (default = {biasCentre})',default = biasCentre)
@@ -354,6 +360,11 @@ if args.ppp: # configure download of all required products
 	args.orbits = True
 	args.erp    = True
 
+#if args.rapid:
+#	clkTemplate = 'IGS0OPSRAP_YYYYDDD0000_01D_05M_CLK.CLK.gz'
+#elif args.final:
+#	clkTemplate = 'IGS0OPSFIN_YYYYDDD0000_01D_05M_CLK.CLK.gz'
+	
 # Now that we've defined the file types to download, set the MJD range for download
 nprev = int(args.ndays)
 
@@ -466,7 +477,7 @@ for m in range(start,stop+1):
 		elif (args.final):
 			dstdir = finaldir
 			if GPSWn > 2237: # published for first day of GPS week
-				(tmpyyyy,tmpdoy) = ottp.MJDtoYYYYDOY(m - GPSday)
+				(tmpyyyy,tmpdoy,tmpmon) = ottp.MJDtoYYYYDOY(m - GPSday)
 				fname = 'IGS0OPSFIN_{:04d}{:03d}0000_07D_01D_ERP.ERP.gz'.format(tmpyyyy,tmpdoy)
 			else:
 				fname = 'igs{:04d}{:1d}.erp.Z'.format(GPSWn,7) # published at end of week (GPSday == 7)
