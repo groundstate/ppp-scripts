@@ -116,16 +116,7 @@ receiver_options:
                 otl: true # Enable ocean tide loading
                 solid: true # Enable solid Earth tides
                 spole: true # Enable solid Earth pole tides
-    # ALIC:
-    #     receiver_type:    "LEICA GR25"                 # (string)
-    #     antenna_type:     "LEIAR25.R3      NONE"       # (string)
-    #     apriori_position: [-4052052.7254, 4212835.9872,-2545104.6139] # [floats]
-    #     aliases:          [PIVOT] # set as pivot station
-    #     models:
-    #         eccentricity:
-    #             enable:   true
-    #             offset:   [0.0000,   0.0000,   0.0015] # [floats]
-
+ 
 processing_options:
     process_modes:
         preprocessor: true # Preprocessing and quality checks
