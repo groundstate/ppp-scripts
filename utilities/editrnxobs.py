@@ -44,18 +44,12 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib as ottp
 import rinexlib as rinex
 
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 AUTHORS = "Michael Wouters"
-
-# ------------------------------------------
-def ErrorExit(msg):
-	print(msg)
-	sys.exit(0)
 
 # ------------------------------------------
 def IsMJD(txt):
 	return re.match(r'\d{5}',txt)
-
 
 # ------------------------------------------
 def ParseRINEXFileName(fname):
@@ -90,7 +84,7 @@ def ParseRINEXFileName(fname):
 		ver=3
 		return (p,ver,st,doy,yy,yyyy,ext,dataSource,hhmm,filePeriod,dataFrequency,ft)
 	
-	ErrorExit(fname + ' is not a standard RINEX file name')
+	ottp.ErrorExit(fname + ' is not a standard RINEX file name')
 	
 # ------------------------------------------
 def ReadHeader(fin):
@@ -149,7 +143,7 @@ def WriteTmpHeaderFile(tmpHeaderFile,hdr):
 	try:
 		fout = open(tmpHeaderFile,'w')
 	except:
-		ErrorExit('Unable to create temporary file ' + tmpHeaderFile)
+		ottp.ErrorExit('Unable to create temporary file ' + tmpHeaderFile)
 		
 	for l in hdr:
 		fout.write(l)
@@ -269,10 +263,11 @@ args = parser.parse_args()
 
 debug = args.debug
 ottp.SetDebugging(debug)
+rinex.SetDebugging(debug)
 
 # Check arguments
 if not(args.catenate or args.excludegnss):
-	ErrorExit('Nothing to do!')
+	ottp.ErrorExit('Nothing to do!')
 
 tmpDir =args.tmpdir
 tmpDataFile =   os.path.join(tmpDir,'rnxmeas.tmp')
@@ -299,17 +294,17 @@ elif (2==len(args.infile)):
 		if args.fixmissing:
 			mjdStart -= 1
 		if (mjdStop < mjdStart):
-			ErrorExit('Stop MJD is before Start MJD')
+			ottp.ErrorExit('Stop MJD is before Start MJD')
 		for m in range(mjdStart,mjdStop+1):
 			infiles.append(str(m))
 else:
-	ErrorExit('Too many files!')
+	ottp.ErrorExit('Too many files!')
 	
 if infiles:
 	if not(args.template):
-		ErrorExit('You need to define a template for the RINEX file names (--template)')
+		ottp.ErrorExit('You need to define a template for the RINEX file names (--template)')
 	if not(rinex.MJDtoRINEXObsName(60000,args.template)):
-		ErrorExit('Bad --template')
+		ottp.ErrorExit('Bad --template')
 	for i in range(0,len(infiles)):
 		fName = rinex.MJDtoRINEXObsName(int(infiles[i]),args.template)
 		infiles[i] = os.path.join(args.obsdir,fName)
@@ -318,7 +313,11 @@ if infiles:
 # No ? Then check for a file sequence
 if not(infiles):
 	if (1==len(args.infile)):
-		infiles.append(os.path.join(args.obsdir,args.infile[0]))
+		dirname = os.path.dirname(args.infile[0])
+		if dirname == '' or dirname == '.':
+			infiles.append(os.path.join(args.obsdir,args.infile[0]))
+		else:
+			infiles.append(os.path.join(args.infile[0]))
 		if args.fixmissing:
 			(path1,ver1,st1,doy1,yy1,yyyy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0])
 			date1=datetime.datetime(yyyy1, 1, 1) + datetime.timedelta(doy1 - 1)
@@ -328,16 +327,16 @@ if not(infiles):
 		(path1,ver1,st1,doy1,yy1,yyyy1,ext1,dataSource1,hhmm1,filePeriod1,dataFrequency1,ft1)=ParseRINEXFileName(args.infile[0]) # version here is naming convention
 		(path2,ver2,st2,doy2,yy2,yyyy2,ext2,dataSource2,hhmm2,filePeriod2,dataFrequency2,ft2)=ParseRINEXFileName(args.infile[1])
 		if not(path1 == path2):
-			ErrorExit('The files must be in the same directory for the --sequence/--fixmissing  option\n')
+			ottp.ErrorExit('The files must be in the same directory for sequences\n')
 		if not(ver1 == ver2):
-			ErrorExit('The RINEX files must have the same naming convention for the --sequence/--fixmissing option\n')
+			ottp.ErrorExit('The RINEX files must have the same naming convention for sequences\n')
 		if not(st1==st2):
-			ErrorExit('The station names must match with the --sequence/--fixmissing option\n')
+			ottp.ErrorExit('The station names must match for sequences\n')
 		if not(ft1==ft2):
-			ErrorExit('The file types must match with the --sequence/--fixmissing option\n')
+			ottp.ErrorExit('The file types must match for sequencesn\n')
 			
 		if ((yyyy1 > yyyy2) or (yyyy1 == yyyy2 and doy1 > doy2)):
-			ErrorExit('The files appear to be in the wrong order for the --sequence/--fixmissing option\n')
+			ottp.ErrorExit('The files appear to be in the wrong order for sequences\n')
 			
 		# it appears we have a valid sequence so generate it
 		if args.fixmissing:
@@ -347,10 +346,12 @@ if not(infiles):
 		date2=datetime.datetime(yyyy2, 1, 1) + datetime.timedelta(doy2 - 1)
 		td =  date2-date1
 		
-		obsdir = path1
-		if args.obsdir:
+		# If the file does not have a leading path  then use args.obsdir
+		if path1 == '' or path1 == '.':
 			obsdir = args.obsdir
-			
+		else:
+			obsdir = path1
+		
 		for d in range(0,td.days+1):
 			ddate = date1 +  datetime.timedelta(d)
 			if (ver1 == 2):
@@ -364,7 +365,7 @@ if not(infiles):
 				fname = '{}_{}_{}{:>03d}{}_{}_{}_{}.{}'.format(st1,dataSource1,yystr,int(doystr),hhmm1,filePeriod1,dataFrequency1,ft1,ext1) 
 				infiles.append(os.path.join(obsdir,fname))
 	else:
-		ErrorExit('Too many files!')
+		ottp.ErrorExit('Too many files!')
 
 #if (args.output and len(args.infile) >1 and not(args.catenate)):
 	#if not(os.path.isdir(args.output)):
@@ -387,12 +388,12 @@ fDe,algo = rinex.Decompress(infiles[0])
 try:
 	fin = open(fDe,'r')
 except:
-	ErrorExit('Unable to open ' + fDe)
+	ottp.ErrorExit('Checking RINEX version: unable to open ' + fDe)
 	
 hdr = ReadHeader(fin)
 majorVer,minorVer = GetRinexVersion(hdr)
 if (majorVer < 3):
-	ErrorExit('RINEX version {:d} detected in {}. Only V3 is supported'.format(majorVer,infiles[0]))
+	ottp.ErrorExit('RINEX version {:d} detected in {}. Only V3 is supported'.format(majorVer,infiles[0]))
 rinex.Compress(fDe,infiles[0],algo)
 
 
@@ -404,7 +405,7 @@ if args.catenate: # open the measurement file for output
 	try:
 		fout = open(tmpDataFile,'w')
 	except:
-		ErrorExit('Unable to create temporary file ' + tmpDataFile)
+		ottp.ErrorExit('Unable to create temporary file ' + tmpDataFile)
 
 compressionJobs =[]
 
@@ -417,7 +418,7 @@ for f in infiles:
 		fin = open(finName,'r')
 		svn=[]
 	except:
-		ErrorExit('Unable to open ' + finName)
+		ottp.ErrorExit('Unable to open ' + finName)
 	
 	ottp.Debug('Opened ' + finName)
 	
@@ -425,7 +426,7 @@ for f in infiles:
 		try:
 			fout = open(tmpDataFile,'w')
 		except:
-			ErrorExit('Unable to create temporary file ' + tmpDataFile)
+			ottp.ErrorExit('Unable to create temporary file ' + tmpDataFile)
 			
 	hdr = ReadHeader(fin)
 	headers.append(hdr)
@@ -515,7 +516,7 @@ if args.fixmissing:
 			hdr = ReadHeader(ftmp)
 			ftmp.close() 
 		except:
-			ErrorExit('Unable to create temporary file ' + tmpDailyDataFile)
+			ottp.ErrorExit('Unable to create temporary file ' + tmpDailyDataFile)
 		fileCount += 1
 		
 		while reading:
