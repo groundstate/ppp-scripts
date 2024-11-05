@@ -1,0 +1,4 @@
+
+SNX file is not necessary but it appears to be sued as the source of information about 
+the receiver and station (and antenna?)
+If not used, solution shifted by eg 200 ps 

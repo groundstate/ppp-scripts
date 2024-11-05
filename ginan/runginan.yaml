@@ -24,5 +24,5 @@ outputs:
 
 receiver_options:
     receiver_type: "SEPT POLARX5TR"
-    antenna_type:  "LEIAR25.R4      LEIT" # note that the radome type is needed too - use the 20 character field
+    antenna_type:  "LEIAR25.R4      LEIT" # note that the radome type is needed too - uise the 20 character field
     apriori_position: [3844059.7545,709661.5334,5023129.6933]
