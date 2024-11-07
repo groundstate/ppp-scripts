@@ -1,4 +1,4 @@
-# This defines substitutions to make into ppp_template.yaml
+
 pea:
     exec: /home/michael/bin/pea # path to the executable
     options: # options to pass to pea
@@ -6,7 +6,8 @@ pea:
     ppp_template: <ROOT>/etc/ppp_template.yaml
     station: PTBB # used for naming output directory and run directory (defines <STATION>)
     run_dir: <ROOT>/ginan/run/<STATION>
-    
+  
+# This mostly defines substitutions to make into ppp_template.yaml
 inputs:
     satellite_data:
         src_dir: <ROOT>/igs/rapid
@@ -24,5 +25,5 @@ outputs:
 
 receiver_options:
     receiver_type: "SEPT POLARX5TR"
-    antenna_type:  "LEIAR25.R4      LEIT" # note that the radome type is needed too - use the 20 character field
+    antenna_type:  "LEIAR25.R4      LEIT" # note that the radome type is needed too - use the 20 character field - ginan seems to be fussy about this
     apriori_position: [3844059.7545,709661.5334,5023129.6933]

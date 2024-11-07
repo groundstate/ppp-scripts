@@ -51,17 +51,13 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install rinexlib\n eg openttp/software/system/installsys.py -i rinexlib')
 	
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 AUTHORS = 'Michael Wouters'
-RAPID_LATENCY = 2    # Latency of rapid orbit products 
 PEA = '/usr/local/bin/pea'
 PPP_TEMPLATE = 'ppp_template.yaml'
+RAPID_LATENCY = 2
 EDITRNXOBS = '/usr/local/bin/editrnxobs.py'
 
-# ------------------------------------------
-def ErrorExit(msg):
-	sys.stderr.write('Error! '+ msg+'\n')
-	sys.exit(1)
 
 # ------------------------------------------
 def MJDtoIGSProductName(mjd,template):
@@ -169,7 +165,7 @@ configFile = args.config
 try:
 	fin = open(configFile, 'r')
 except:
-	ErrorExit('Unable to open ' + configFile)
+	ottp.ErrorExit('Unable to open ' + configFile)
 cfg = yaml.safe_load(fin) # only need to load the template once
 fin.close()
 
@@ -229,7 +225,7 @@ try:
 	ottp.Debug('Loading ' + pppTemplate)
 	fin = open(pppTemplate, 'r')
 except:
-	ErrorExit('Unable to open ' + pppTemplate)
+	ottp.ErrorExit('Unable to open ' + pppTemplate)
 	
 gCfg = yaml.safe_load(fin) # only need to load the template once
 fin.close()
@@ -323,15 +319,21 @@ if args.daily:
 		try:
 			fout = open(gCfgOut, 'w')
 		except:
-			ErrorExit('Unable to open ' + gCfgOut)
+			ottp.ErrorExit('Unable to open ' + gCfgOut)
 			
 		yaml.safe_dump(gCfg, fout, sort_keys = False) # We preserve the input order. Note that comments are stripped
 		
 		# Run 'pea'
 		ottp.Debug('Running pea')
 		tstart = time.time()
+		
+		if cfg['pea']['options']:
+			userArgs = cfg['pea']['options'].split()
+		else:
+			userArgs = []
+			
 		try:
-			cmdargs = [peaExec,'-y',gCfgOut]
+			cmdargs = [peaExec,'-y',gCfgOut] + userArgs
 			subprocess.check_output(cmdargs) 
 		except Exception as e:
 			print(e)
@@ -418,7 +420,7 @@ else: # output a single CLK file
 	try:
 		fout = open(gCfgOut, 'w')
 	except:
-		ErrorExit('Unable to open ' + gCfgOut)
+		ottp.ErrorExit('Unable to open ' + gCfgOut)
 		
 	yaml.safe_dump(gCfg, fout, sort_keys = False) 
 	ottp.Debug(f'Wrote {gCfgOut}')
@@ -426,8 +428,14 @@ else: # output a single CLK file
 	# Run 'pea'
 	ottp.Debug('Running pea')
 	tstart = time.time()
+	
+	if cfg['pea']['options']:
+		userArgs = cfg['pea']['options'].split()
+	else: 
+		userArgs = []
+		
 	try:
-		cmdargs = [peaExec,'-y',gCfgOut]
+		cmdargs = [peaExec,'-y',gCfgOut] + userArgs
 		subprocess.check_output(cmdargs) 
 	except Exception as e:
 		print(e)
