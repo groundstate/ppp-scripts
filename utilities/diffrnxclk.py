@@ -39,7 +39,7 @@ sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
 import ottplib as ottp
 
 AUTHORS = 'Michael Wouters'
-VERSION = '2.1.0'
+VERSION = '2.1.1'
 
 examples = 'Usage examples:\n'
 examples += '(1) Difference 7 day files generated using CSRS\n'
@@ -159,7 +159,7 @@ for m in range(startMJD,stopMJD+1,nDays):
 		if stastr in l:
 			data = l.split()
 			tod = int(data[5])*3600 + int(data[6])*60 + int(float(data[7])) 
-			dt = datetime.datetime(int(data[2]), int(data[3]), int(data[4]))
+			dt = datetime.datetime(int(data[2]), int(data[3]), int(data[4]),tzinfo = datetime.timezone.utc)
 			mjd = int(dt.timestamp()/86400) + 40587;
 			dclk1.append([mjd,tod,data[9]])
 	fin.close()
@@ -173,7 +173,7 @@ for m in range(startMJD,stopMJD+1,nDays):
 		if stastr in l:
 			data = l.split()
 			tod = int(data[5])*3600 + int(data[6])*60 + int(float(data[7])) 
-			dt = datetime.datetime(int(data[2]), int(data[3]), int(data[4]))
+			dt = datetime.datetime(int(data[2]), int(data[3]), int(data[4]),tzinfo = datetime.timezone.utc)
 			mjd = int(dt.timestamp()/86400) + 40587;
 			dclk2.append([mjd,tod,data[9]])
 	fin.close()
