@@ -1,6 +1,7 @@
 
 pea:
     exec: /home/michael/bin/pea # path to the executable
+    openmpthreads: 1 # number of threads openmp should use. If set to zero, chosen by pea. '1' works best for a single station
     options: # options to pass to pea
     root: /home/michael # root for paths needed by Ginan (defines <ROOT>)
     ppp_template: <ROOT>/etc/ppp_template.yaml

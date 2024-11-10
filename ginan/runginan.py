@@ -40,6 +40,7 @@ import yaml
 # This is where ottplib is installed
 sys.path.append("/usr/local/lib/python3.8/site-packages")  # Ubuntu 20.04
 sys.path.append("/usr/local/lib/python3.10/site-packages") # Ubuntu 22.04
+sys.path.append("/usr/local/lib/python3.12/site-packages") # Ubuntu 24.04 
 
 try: 
 	import ottplib as ottp
@@ -51,13 +52,12 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install rinexlib\n eg openttp/software/system/installsys.py -i rinexlib')
 	
-VERSION = '0.1.1'
+VERSION = '0.2.0'
 AUTHORS = 'Michael Wouters'
 PEA = '/usr/local/bin/pea'
 PPP_TEMPLATE = 'ppp_template.yaml'
 RAPID_LATENCY = 2
 EDITRNXOBS = '/usr/local/bin/editrnxobs.py'
-
 
 # ------------------------------------------
 def MJDtoIGSProductName(mjd,template):
@@ -124,6 +124,8 @@ def ScrubDir(theDir):
 		
 # --------------------------------------------------------------------------------------------------------
 
+
+
 home = os.environ['HOME'] 
 root = home 
 configFile = os.path.join(root,'etc','runginan.yaml')
@@ -171,6 +173,16 @@ fin.close()
 
 if 'exec' in cfg['pea']:
 	peaExec = cfg['pea']['exec']
+	
+if 'openmpthread' in cfg['pea']:
+	nthreads = cfg['pea']['openmpthreads']
+	if not(nthreads == '0'):
+			os.environ['OMP_NUM_THREADS'] = nthreads
+else:
+	os.environ['OMP_NUM_THREADS'] = '1' # works better for one station
+	nthreads = '1'
+	
+ottp.Debug(f'OpenMP threads = {nthreads} [0==auto select]')
 
 if 'root' in cfg['pea']:
 	peaRoot = cfg['pea']['root'] # need this for replacements
