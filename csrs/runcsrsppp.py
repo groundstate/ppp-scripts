@@ -52,7 +52,7 @@ try:
 except ImportError:
 	sys.exit('ERROR: Must install rinexlib\n eg openttp/software/system/installsys.py -i rinexlib')
 	
-VERSION = '0.2.5'
+VERSION = '0.3.0'
 AUTHORS = 'Michael Wouters'
 EDIT_RNX_OBS = 'editrnxobs.py'
 CSRS_PPP_AUTO = 'csrs_ppp_auto.py'
@@ -87,6 +87,8 @@ parser.add_argument('mjd',nargs = '*',help='first MJD [last MJD] (if not given, 
 parser.add_argument('--config','-c',help='use an alternate configuration file',default=configFile)
 parser.add_argument('--debug','-d',help='debug (to stderr)',action='store_true')
 parser.add_argument('--force','-f',help='force reprocessing',action='store_true')
+parser.add_argument('--list','-l',help='list receivers',action='store_true')
+parser.add_argument('--receivers','-r',help='comma separated list of receivers to process')
 parser.add_argument('--version','-v',action='version',version = os.path.basename(sys.argv[0])+ ' ' + VERSION + '\n' + 'Written by ' + AUTHORS)
 parser.add_argument('--missing',help='generate missing files',action='store_true')
 
@@ -106,6 +108,13 @@ if (not os.path.isfile(configFile)):
 
 cfg=ottp.Initialise(configFile,['main:receivers','main:csrs user'])
 
+if args.list:
+	receivers = cfg['main:receivers'].split(',')
+	print(f'Receivers in {configFile}:')
+	for r in receivers:
+		print(r)
+	sys.exit(0)
+	
 if 'paths:root' in cfg:
 	root = ottp.MakeAbsolutePath(cfg['paths:root'],home)
 
@@ -140,9 +149,20 @@ if (args.mjd): # specifying MJD overrides the automatic calculation
 	else:
 		ottp.ErrorExit('Too many MJDs')
 
+
 receivers = cfg['main:receivers'].split(',')
 receivers = [r.lower() for r in receivers]
 
+if args.receivers:
+	newReceivers = args.receivers.split(',')
+	newReceivers = [r.strip().lower() for r in newReceivers]
+	# Do a basic check
+	for rx in newReceivers:
+		if not ((rx + ':' + 'rinex template') in cfg):
+			print(f'{rx} does not appear to be defined in the configuration file')
+			sys.exit(1)
+	receivers = newReceivers
+	
 # What GNSS do we want
 exclusions = ''
 gnss = cfg['main:gnss'].upper()
